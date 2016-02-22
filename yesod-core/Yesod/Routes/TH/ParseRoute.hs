@@ -36,7 +36,7 @@ mkParseRouteInstance typ ress = do
   where
     -- We do this in order to ski the unnecessary method parsing
     removeMethods (ResourceLeaf res) = ResourceLeaf $ removeMethodsLeaf res
-    removeMethods (ResourceParent w x y z) = ResourceParent w x y $ map removeMethods z
+    removeMethods (ResourceParent v w x y z) = ResourceParent v w x y $ map removeMethods z
 
     removeMethodsLeaf res = res { resourceDispatch = fixDispatch $ resourceDispatch res }
 

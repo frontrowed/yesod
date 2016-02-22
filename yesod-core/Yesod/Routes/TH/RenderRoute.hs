@@ -39,7 +39,7 @@ mkRouteCons =
             case resourceDispatch res of
                 Subsite { subsiteType = typ } -> [ConT ''Route `AppT` typ]
                 _ -> []
-    mkRouteCon (ResourceParent name _check pieces children) =
+    mkRouteCon (ResourceParent name _check pieces _queries children) =
         ([con], dec : decs)
       where
         (cons, decs) = mkRouteCons children
@@ -60,7 +60,7 @@ mkRenderRouteClauses =
     isDynamic Dynamic{} = True
     isDynamic _ = False
 
-    go (ResourceParent name _check pieces children) = do
+    go (ResourceParent name _check pieces _queries children) = do
         let cnt = length $ filter isDynamic pieces
         dyns <- replicateM cnt $ newName "dyn"
         child <- newName "child"

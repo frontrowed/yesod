@@ -79,6 +79,15 @@ mkDispatchClause MkDispatchSettings {..} resources = do
     handlePieces :: [Piece a] -> Q ([Pat], [Exp])
     handlePieces = fmap (second catMaybes . unzip) . mapM handlePiece
 
+    handleQuery :: Query a -> Q (Pat, Exp)
+    handleQuery (Query _) = do
+        x <- newName "query"
+        let pat = ViewP (VarE 'fromPathPiece) (ConP 'Just [VarP x])
+        return (pat, VarE x)
+
+    handleQueries :: [Query a] -> Q ([Pat], [Exp])
+    handleQueries = fmap unzip . mapM handleQuery
+
     mkCon :: String -> [Exp] -> Exp
     mkCon name = foldl' AppE (ConE $ mkName name)
 
@@ -89,11 +98,12 @@ mkDispatchClause MkDispatchSettings {..} resources = do
         addPat x y = ConP '(:) [x, y]
 
     go :: SDC -> ResourceTree a -> Q Clause
-    go sdc (ResourceParent name _check pieces children) = do
+    go sdc (ResourceParent name _check pieces queries children) = do
         (pats, dyns) <- handlePieces pieces
+        (patsQ, qs) <- handleQueries queries
         let sdc' = sdc
-                { extraParams = extraParams sdc ++ dyns
-                , extraCons = extraCons sdc ++ [mkCon name dyns]
+                { extraParams = extraParams sdc ++ dyns ++ qs
+                , extraCons = extraCons sdc ++ [mkCon name $ dyns ++ qs]
                 }
         childClauses <- mapM (go sdc') children
 
@@ -105,16 +115,17 @@ mkDispatchClause MkDispatchSettings {..} resources = do
         let helperE = VarE helperName
 
         return $ Clause
-            [mkPathPat restP pats]
+            [mkPathPat restP $ pats ++ patsQ]
             (NormalB $ helperE `AppE` restE)
             [FunD helperName $ childClauses ++ [clause404 sdc]]
-    go SDC {..} (ResourceLeaf (Resource name pieces dispatch _ _check)) = do
+    go SDC {..} (ResourceLeaf (Resource name pieces queries dispatch _ _check)) = do
         (pats, dyns) <- handlePieces pieces
+        (patsQ, qs) <- handleQueries queries
 
-        (chooseMethod, finalPat) <- handleDispatch dispatch dyns
+        (chooseMethod, finalPat) <- handleDispatch dispatch (dyns ++ qs)
 
         return $ Clause
-            [mkPathPat finalPat pats]
+            [mkPathPat finalPat $ pats ++ patsQ]
             (NormalB chooseMethod)
             []
       where

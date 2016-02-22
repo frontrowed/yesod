@@ -99,6 +99,9 @@ do
     /post       Post3         POST
 --    /#Int       Delete3            DELETE
 
+/query/?Int QueryR GET
+
+
 /afterwards AfterR !parent !key=value1:
   /             After     GET !child !key=value2
 
@@ -168,6 +171,8 @@ getGetPostR = pack "get"
 postGetPostR :: Handler site Text
 postGetPostR = pack "post"
 
+getQueryR :: Int -> Handler site Text
+getQueryR i = pack $ "query param: " ++ show i
 
 hierarchy :: Spec
 hierarchy = describe "hierarchy" $ do

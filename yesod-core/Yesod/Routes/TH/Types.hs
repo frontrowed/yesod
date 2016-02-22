@@ -5,7 +5,9 @@ module Yesod.Routes.TH.Types
     ( -- * Data types
       Resource (..)
     , ResourceTree (..)
+    , AnyPiece (..)
     , Piece (..)
+    , Query (..)
     , Dispatch (..)
     , CheckOverlap
     , FlatResource (..)
@@ -20,24 +22,25 @@ import Language.Haskell.TH.Syntax
 
 data ResourceTree typ
     = ResourceLeaf (Resource typ)
-    | ResourceParent String CheckOverlap [Piece typ] [ResourceTree typ]
+    | ResourceParent String CheckOverlap [Piece typ] [Query typ] [ResourceTree typ]
     deriving Functor
 
 resourceTreePieces :: ResourceTree typ -> [Piece typ]
 resourceTreePieces (ResourceLeaf r) = resourcePieces r
-resourceTreePieces (ResourceParent _ _ x _) = x
+resourceTreePieces (ResourceParent _ _ x _ _) = x
 
 resourceTreeName :: ResourceTree typ -> String
 resourceTreeName (ResourceLeaf r) = resourceName r
-resourceTreeName (ResourceParent x _ _ _) = x
+resourceTreeName (ResourceParent x _ _ _ _) = x
 
 instance Lift t => Lift (ResourceTree t) where
     lift (ResourceLeaf r) = [|ResourceLeaf $(lift r)|]
-    lift (ResourceParent a b c d) = [|ResourceParent $(lift a) $(lift b) $(lift c) $(lift d)|]
+    lift (ResourceParent a b c d e) = [|ResourceParent $(lift a) $(lift b) $(lift c) $(lift d) $(lift e)|]
 
 data Resource typ = Resource
     { resourceName :: String
     , resourcePieces :: [Piece typ]
+    , resourceQueries :: [Query typ]
     , resourceDispatch :: Dispatch typ
     , resourceAttrs :: [String]
     , resourceCheck :: CheckOverlap
@@ -47,10 +50,10 @@ data Resource typ = Resource
 type CheckOverlap = Bool
 
 instance Lift t => Lift (Resource t) where
-    lift (Resource a b c d e) = [|Resource a b c d e|]
+    lift (Resource a b c d e f) = [|Resource a b c d e f|]
 
 data Piece typ = Static String | Dynamic typ
-    deriving Show
+    deriving (Show, Eq, Read)
 
 instance Functor Piece where
     fmap _ (Static s) = (Static s)
@@ -59,6 +62,19 @@ instance Functor Piece where
 instance Lift t => Lift (Piece t) where
     lift (Static s) = [|Static $(lift s)|]
     lift (Dynamic t) = [|Dynamic $(lift t)|]
+
+data Query typ = Query typ
+    deriving (Eq, Show, Read, Functor)
+
+instance Lift t => Lift (Query t) where
+    lift (Query t) = [|Query $(lift t)|]
+
+data AnyPiece typ = UrlPiece (Piece typ) | QueryPiece (Query typ)
+    deriving (Eq, Show, Read, Functor)
+
+instance Lift t => Lift (AnyPiece t) where
+    lift (UrlPiece t) = [|UrlPiece $(lift t)|]
+    lift (QueryPiece t) = [|QueryPiece $(lift t)|]
 
 data Dispatch typ =
     Methods
@@ -85,9 +101,10 @@ resourceMulti Resource { resourceDispatch = Methods (Just t) _ } = Just t
 resourceMulti _ = Nothing
 
 data FlatResource a = FlatResource
-    { frParentPieces :: [(String, [Piece a])]
+    { frParentPieces :: [(String, [Piece a], [Query a])]
     , frName :: String
     , frPieces :: [Piece a]
+    , frQueries :: [Query a]
     , frDispatch :: Dispatch a
     , frCheck :: Bool
     }
@@ -96,6 +113,6 @@ flatten :: [ResourceTree a] -> [FlatResource a]
 flatten =
     concatMap (go id True)
   where
-    go front check' (ResourceLeaf (Resource a b c _ check)) = [FlatResource (front []) a b c (check' && check)]
-    go front check' (ResourceParent name check pieces children) =
-        concatMap (go (front . ((name, pieces):)) (check && check')) children
+    go front check' (ResourceLeaf (Resource a b c d _ check)) = [FlatResource (front []) a b c d (check' && check)]
+    go front check' (ResourceParent name check pieces queries children) =
+        concatMap (go (front . ((name, pieces, queries):)) (check && check')) children

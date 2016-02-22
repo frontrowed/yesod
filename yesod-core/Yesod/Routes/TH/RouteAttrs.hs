@@ -19,7 +19,7 @@ mkRouteAttrsInstance typ ress = do
 
 goTree :: (Pat -> Pat) -> ResourceTree a -> Q [Clause]
 goTree front (ResourceLeaf res) = fmap return $ goRes front res
-goTree front (ResourceParent name _check pieces trees) =
+goTree front (ResourceParent name _check pieces _queries trees) =
     fmap concat $ mapM (goTree front') trees
   where
     ignored = ((replicate toIgnore WildP ++) . return)

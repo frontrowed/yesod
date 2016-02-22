@@ -10,25 +10,28 @@ import Data.List (intercalate)
 data Flattened t = Flattened
     { fNames :: [String]
     , fPieces :: [Piece t]
+    , fQueries :: [Query t]
     , fHasSuffix :: Bool
     , fCheck :: CheckOverlap
     }
 
 flatten :: ResourceTree t -> [Flattened t]
 flatten =
-    go id id True
+    go id id id True
   where
-    go names pieces check (ResourceLeaf r) = return Flattened
+    go names pieces queries check (ResourceLeaf r) = return Flattened
         { fNames = names [resourceName r]
         , fPieces = pieces (resourcePieces r)
+        , fQueries = queries (resourceQueries r)
         , fHasSuffix = hasSuffix $ ResourceLeaf r
         , fCheck = check && resourceCheck r
         }
-    go names pieces check (ResourceParent newname check' newpieces children) =
-        concatMap (go names' pieces' (check && check')) children
+    go names pieces queries check (ResourceParent newname check' newpieces newqueries children) =
+        concatMap (go names' pieces' queries' (check && check')) children
       where
         names' = names . (newname:)
         pieces' = pieces . (newpieces ++)
+        queries' = queries . (newqueries ++)
 
 data Overlap t = Overlap
     { overlapParents :: [String] -> [String] -- ^ parent resource trees

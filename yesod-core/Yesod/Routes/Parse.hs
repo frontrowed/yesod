@@ -92,25 +92,29 @@ resourcesFromString =
                     , Just attrs <- mapM parseAttr rest ->
                     let (children, otherLines'') = parse (length spaces + 1) otherLines
                         children' = addAttrs attrs children
-                        (pieces, Nothing, check) = piecesFromStringCheck pattern
-                     in ((ResourceParent constr check pieces children' :), otherLines'')
+                        (pieces, queries, Nothing, check) = piecesFromStringCheck pattern
+                     in ((ResourceParent constr check pieces queries children' :), otherLines'')
                 (pattern:constr:rest) ->
-                    let (pieces, mmulti, check) = piecesFromStringCheck pattern
+                    let (pieces, queries, mmulti, check) = piecesFromStringCheck pattern
                         (attrs, rest') = takeAttrs rest
                         disp = dispatchFromString rest' mmulti
-                     in ((ResourceLeaf (Resource constr pieces disp attrs check):), otherLines)
+                     in ((ResourceLeaf (Resource constr pieces queries disp attrs check):), otherLines)
                 [] -> (id, otherLines)
                 _ -> error $ "Invalid resource line: " ++ thisLine
 
-piecesFromStringCheck :: String -> ([Piece String], Maybe String, Bool)
+piecesFromStringCheck :: String -> ([Piece String], [Query String], Maybe String, Bool)
 piecesFromStringCheck s0 =
-    (pieces, mmulti, check)
+    (pieces, queries, mmulti, check)
   where
     (s1, check1) = stripBang s0
-    (pieces', mmulti') = piecesFromString $ drop1Slash s1
-    pieces = map snd pieces'
+    (anypieces', mmulti') = piecesFromString $ drop1Slash s1
+    anypieces = map snd anypieces'
+    accum (ps, qs) [] = (ps, qs)
+    accum (ps, qs) (QueryPiece q : xs) = accum (ps, q:qs) xs
+    accum (ps, qs) (UrlPiece   p : xs) = accum (p:ps, qs) xs
+    (pieces, queries) = accum ([], []) anypieces
     mmulti = fmap snd mmulti'
-    check = check1 && all fst pieces' && maybe True fst mmulti'
+    check = check1 && all fst anypieces' && maybe True fst mmulti'
 
     stripBang ('!':rest) = (rest, False)
     stripBang x = (x, True)
@@ -120,7 +124,7 @@ addAttrs attrs =
     map goTree
   where
     goTree (ResourceLeaf res) = ResourceLeaf (goRes res)
-    goTree (ResourceParent w x y z) = ResourceParent w x y (map goTree z)
+    goTree (ResourceParent v w x y z) = ResourceParent v w x y (map goTree z)
 
     goRes res =
         res { resourceAttrs = noDupes ++ resourceAttrs res }
@@ -161,7 +165,7 @@ drop1Slash :: String -> String
 drop1Slash ('/':x) = x
 drop1Slash x = x
 
-piecesFromString :: String -> ([(CheckOverlap, Piece String)], Maybe (CheckOverlap, String))
+piecesFromString :: String -> ([(CheckOverlap, AnyPiece String)], Maybe (CheckOverlap, String))
 piecesFromString "" = ([], Nothing)
 piecesFromString x =
     case (this, rest) of
@@ -236,10 +240,15 @@ ttToType (TTTerm s) = ConT $ mkName s
 ttToType (TTApp x y) = ttToType x `AppT` ttToType y
 ttToType (TTList t) = ListT `AppT` ttToType t
 
-pieceFromString :: String -> Either (CheckOverlap, String) (CheckOverlap, Piece String)
-pieceFromString ('#':'!':x) = Right $ (False, Dynamic x)
-pieceFromString ('!':'#':x) = Right $ (False, Dynamic x) -- https://github.com/yesodweb/yesod/issues/652
-pieceFromString ('#':x) = Right $ (True, Dynamic x)
+pieceFromString :: String -> Either (CheckOverlap, String) (CheckOverlap, AnyPiece String)
+pieceFromString ('#':'!':x) = Right $ (False, UrlPiece $ Dynamic x)
+pieceFromString ('!':'#':x) = Right $ (False, UrlPiece $ Dynamic x) -- https://github.com/yesodweb/yesod/issues/652
+pieceFromString ('#':x) = Right $ (True, UrlPiece $ Dynamic x)
+
+pieceFromString ('?':'!':x) = Right (False, QueryPiece $ Query x)
+pieceFromString ('!':'?':x) = Right (False, QueryPiece $ Query x)
+
+pieceFromString ('?':x) = Right (True, QueryPiece $ Query x)
 
 pieceFromString ('*':'!':x) = Left (False, x)
 pieceFromString ('+':'!':x) = Left (False, x)
@@ -250,5 +259,5 @@ pieceFromString ('!':'+':x) = Left (False, x)
 pieceFromString ('*':x) = Left (True, x)
 pieceFromString ('+':x) = Left (True, x)
 
-pieceFromString ('!':x) = Right $ (False, Static x)
-pieceFromString x = Right $ (True, Static x)
+pieceFromString ('!':x) = Right $ (False, UrlPiece $ Static x)
+pieceFromString x = Right $ (True, UrlPiece $ Static x)
