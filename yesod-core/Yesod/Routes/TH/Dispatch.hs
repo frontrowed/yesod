@@ -80,7 +80,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
     handlePieces = fmap (second catMaybes . unzip) . mapM handlePiece
 
     handleQuery :: Query a -> Q (Pat, Exp)
-    handleQuery (Query _) = do
+    handleQuery (Query _ _) = do
         x <- newName "query"
         let pat = ViewP (VarE 'fromPathPiece) (ConP 'Just [VarP x])
         return (pat, VarE x)

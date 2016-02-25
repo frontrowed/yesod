@@ -65,11 +65,11 @@ getMySubParam _ = MySubParam
 do
     texts <- [t|[Text]|]
     let resLeaves = map ResourceLeaf
-            [ Resource "RootR" [] (Methods Nothing ["GET"]) ["foo", "bar"] True
-            , Resource "BlogPostR" [Static "blog", Dynamic $ ConT ''Text] (Methods Nothing ["GET", "POST"]) [] True
-            , Resource "WikiR" [Static "wiki"] (Methods (Just texts) []) [] True
-            , Resource "SubsiteR" [Static "subsite"] (Subsite (ConT ''MySub) "getMySub") [] True
-            , Resource "SubparamR" [Static "subparam", Dynamic $ ConT ''Int] (Subsite (ConT ''MySubParam) "getMySubParam") [] True
+            [ Resource "RootR" [] [] (Methods Nothing ["GET"]) ["foo", "bar"] True
+            , Resource "BlogPostR" [Static "blog", Dynamic $ ConT ''Text] [] (Methods Nothing ["GET", "POST"]) [] True
+            , Resource "WikiR" [Static "wiki"] [] (Methods (Just texts) []) [] True
+            , Resource "SubsiteR" [Static "subsite"] [] (Subsite (ConT ''MySub) "getMySub") [] True
+            , Resource "SubparamR" [Static "subparam", Dynamic $ ConT ''Int] [] (Subsite (ConT ''MySubParam) "getMySubParam") [] True
             ]
         resParent = ResourceParent
             "ParentR"
@@ -77,7 +77,8 @@ do
             [ Static "foo"
             , Dynamic $ ConT ''Text
             ]
-            [ ResourceLeaf $ Resource "ChildR" [] (Methods Nothing ["GET"]) ["child"] True
+            []
+            [ ResourceLeaf $ Resource "ChildR" [] [] (Methods Nothing ["GET"]) ["child"] True
             ]
         ress = resParent : resLeaves
     rrinst <- mkRenderRouteInstance (ConT ''MyApp) ress

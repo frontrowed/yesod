@@ -13,6 +13,7 @@ module Yesod.Routes.Parse
     ) where
 
 import Language.Haskell.TH.Syntax
+import Control.Arrow ((***))
 import Data.Char (isUpper)
 import Language.Haskell.TH.Quote
 import qualified System.IO as SIO
@@ -112,7 +113,7 @@ piecesFromStringCheck s0 =
     accum (ps, qs) [] = (ps, qs)
     accum (ps, qs) (QueryPiece q : xs) = accum (ps, q:qs) xs
     accum (ps, qs) (UrlPiece   p : xs) = accum (p:ps, qs) xs
-    (pieces, queries) = accum ([], []) anypieces
+    (pieces, queries) = reverse *** reverse $ accum ([], []) anypieces
     mmulti = fmap snd mmulti'
     check = check1 && all fst anypieces' && maybe True fst mmulti'
 
@@ -245,10 +246,10 @@ pieceFromString ('#':'!':x) = Right $ (False, UrlPiece $ Dynamic x)
 pieceFromString ('!':'#':x) = Right $ (False, UrlPiece $ Dynamic x) -- https://github.com/yesodweb/yesod/issues/652
 pieceFromString ('#':x) = Right $ (True, UrlPiece $ Dynamic x)
 
-pieceFromString ('?':'!':x) = Right (False, QueryPiece $ Query x)
-pieceFromString ('!':'?':x) = Right (False, QueryPiece $ Query x)
+pieceFromString ('?':'!':x) = Right (False, QueryPiece $ parseQueryString x)
+pieceFromString ('!':'?':x) = Right (False, QueryPiece $ parseQueryString x)
 
-pieceFromString ('?':x) = Right (True, QueryPiece $ Query x)
+pieceFromString ('?':x) = Right (True, QueryPiece $ parseQueryString x)
 
 pieceFromString ('*':'!':x) = Left (False, x)
 pieceFromString ('+':'!':x) = Left (False, x)
@@ -261,3 +262,8 @@ pieceFromString ('+':x) = Left (True, x)
 
 pieceFromString ('!':x) = Right $ (False, UrlPiece $ Static x)
 pieceFromString x = Right $ (True, UrlPiece $ Static x)
+
+parseQueryString :: String -> Query String
+parseQueryString s = Query name (drop 1 typ)
+  where
+    (name, typ) = break (== '=') s

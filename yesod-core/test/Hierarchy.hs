@@ -80,6 +80,8 @@ do
 
 /!#Int BackwardsR GET
 
+/query/?q=Int QueryR GET
+
 /admin/#Int AdminR:
     /            AdminRootR GET
     /login       LoginR     GET POST
@@ -98,9 +100,6 @@ do
     /get        Get3      GET
     /post       Post3         POST
 --    /#Int       Delete3            DELETE
-
-/query/?Int QueryR GET
-
 
 /afterwards AfterR !parent !key=value1:
   /             After     GET !child !key=value2
@@ -182,6 +181,8 @@ hierarchy = describe "hierarchy" $ do
         renderRoute (AdminR 5 AdminRootR) @?= (["admin", "5"], [])
     it "renders table correctly" $
         renderRoute (AdminR 6 $ TableR "foo") @?= (["admin", "6", "table", "foo"], [])
+    it "renders queries correctly" $
+        renderRoute (QueryR 1) @?= (["query"], [("q", "1")])
     let disp m ps = dispatcher
             (Env
                 { envToMaster = id
@@ -206,6 +207,7 @@ hierarchy = describe "hierarchy" $ do
     it "parses" $ do
         parseRoute ([], []) @?= Just HomeR
         parseRoute ([], [("foo", "bar")]) @?= Just HomeR
+        parseRoute (["query"], [("q", "5")]) @?= Just (QueryR 5)
         parseRoute (["admin", "5"], []) @?= Just (AdminR 5 AdminRootR)
         parseRoute (["admin!", "5"], []) @?= (Nothing :: Maybe (Route Hierarchy))
     it "inherited attributes" $ do

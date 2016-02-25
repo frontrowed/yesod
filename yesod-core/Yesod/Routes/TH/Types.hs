@@ -63,11 +63,14 @@ instance Lift t => Lift (Piece t) where
     lift (Static s) = [|Static $(lift s)|]
     lift (Dynamic t) = [|Dynamic $(lift t)|]
 
-data Query typ = Query typ
+data Query typ = Query
+    { paramName :: String
+    , queryType :: typ
+    }
     deriving (Eq, Show, Read, Functor)
 
 instance Lift t => Lift (Query t) where
-    lift (Query t) = [|Query $(lift t)|]
+    lift (Query p t) = [|Query $(lift p) $(lift t)|]
 
 data AnyPiece typ = UrlPiece (Piece typ) | QueryPiece (Query typ)
     deriving (Eq, Show, Read, Functor)

@@ -17,7 +17,7 @@ mkParseRouteInstance typ ress = do
             { mdsRunHandler = [|\_ _ x _ -> x|]
             , mds404 = [|error "mds404"|]
             , mds405 = [|error "mds405"|]
-            , mdsGetPathInfo = [|fst|]
+            , mdsGetPathInfo = [|\(path, queries) -> path ++ fmap snd queries |]
             , mdsMethod = [|error "mdsMethod"|]
             , mdsGetHandler = \_ _ -> [|error "mdsGetHandler"|]
             , mdsSetPathInfo = [|\p (_, q) -> (p, q)|]
@@ -34,6 +34,15 @@ mkParseRouteInstance typ ress = do
             [FunD helper [cls]]
         ]
   where
+    -- Put the query params in the order in which they are expected by the
+    -- handler, and any additional ones at the end
+    queryParamsInOrder :: [Text] -> [(Text, Text)] -> [(Text, Text)]
+    queryParamsInOrder q = sortBy go
+      where go x y = case (elemIndex x q, elemIndex y q) of
+        (Just ix, Just iy) -> ix `compare` iy
+        (Nothing, Just _)  -> GT
+        (Just _ , Nothing) -> LT
+        (Nothing, Nothing) -> EQ
     -- We do this in order to ski the unnecessary method parsing
     removeMethods (ResourceLeaf res) = ResourceLeaf $ removeMethodsLeaf res
     removeMethods (ResourceParent v w x y z) = ResourceParent v w x y $ map removeMethods z
