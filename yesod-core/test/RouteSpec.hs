@@ -88,6 +88,7 @@ do
         { mdsRunHandler = [|runHandler|]
         , mdsSubDispatcher = [|subDispatch dispatcher|]
         , mdsGetPathInfo = [|\(path, _queries, _method) -> path|]
+        , mdsGetQueryInfo = [|\(_path, queries, _method) -> fmap snd queries|]
         , mdsMethod = [|\(_paths, _queries, method) -> method|]
         , mdsSetPathInfo = [|\p (_, q, m) -> (p, q, m)|]
         , mds404 = [|pack "404"|]

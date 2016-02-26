@@ -20,6 +20,7 @@ data MkDispatchSettings b site c = MkDispatchSettings
     { mdsRunHandler :: Q Exp
     , mdsSubDispatcher :: Q Exp
     , mdsGetPathInfo :: Q Exp
+    , mdsGetQueryInfo :: Q Exp
     , mdsSetPathInfo :: Q Exp
     , mdsMethod :: Q Exp
     , mds404 :: Q Exp
@@ -54,8 +55,8 @@ mkDispatchClause MkDispatchSettings {..} resources = do
     clause404' <- mkClause404 envE reqE
     getPathInfo <- mdsGetPathInfo
     let pathInfo = getPathInfo `AppE` reqE
-    {-getQueryInfo <- mdsGetQueryInfo-}
-    {-let queryInfo = getQueryInfo `AppE` pathInfo-}
+    getQueryInfo <- mdsGetQueryInfo
+    let queryInfo = getQueryInfo `AppE` reqE
 
     let sdc = SDC
             { clause404 = clause404'
@@ -68,7 +69,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
 
     return $ Clause
         [VarP envName, VarP reqName]
-        (NormalB $ helperE `AppE` pathInfo)
+        (NormalB $ helperE `AppE` pathInfo `AppE` queryInfo)
         [FunD helperName $ clauses ++ [clause404']]
   where
     handlePiece :: Piece a -> Q (Pat, Maybe Exp)
@@ -109,45 +110,48 @@ mkDispatchClause MkDispatchSettings {..} resources = do
                 }
         childClauses <- mapM (go sdc') children
 
-        restName <- newName "rest"
-        let restE = VarE restName
-            restP = VarP restName
+        restPathName <- newName "restPaths"
+        restQueryName <- newName "restQueries"
+        let restPathE = VarE restPathName
+            restPathP = VarP restPathName
+            restQueryE = VarE restQueryName
+            restQueryP = VarP restQueryName
 
         helperName <- newName $ "helper" ++ name
         let helperE = VarE helperName
 
         return $ Clause
-            [mkPathPat restP $ pats ++ patsQ]
-            (NormalB $ helperE `AppE` restE)
+            [mkPathPat restPathP pats , mkPathPat restQueryP patsQ]
+            (NormalB $ helperE `AppE` restPathE `AppE` restQueryE )
             [FunD helperName $ childClauses ++ [clause404 sdc]]
     go SDC {..} (ResourceLeaf (Resource name pieces queries dispatch _ _check)) = do
         (pats, dyns) <- handlePieces pieces
         (patsQ, qs) <- handleQueries queries
 
-        (chooseMethod, finalPat) <- handleDispatch dispatch (dyns ++ qs)
+        (chooseMethod, finalPat) <- handleDispatch dispatch (dyns, qs)
 
         return $ Clause
-            [mkPathPat finalPat $ pats ++ patsQ]
+            [mkPathPat finalPat pats, mkPathPat finalPat patsQ]
             (NormalB chooseMethod)
             []
       where
-        handleDispatch :: Dispatch a -> [Exp] -> Q (Exp, Pat)
-        handleDispatch dispatch' dyns =
+        handleDispatch :: Dispatch a -> ([Exp], [Exp]) -> Q (Exp, Pat)
+        handleDispatch dispatch' (dyns, queries) =
             case dispatch' of
                 Methods multi methods -> do
                     (finalPat, mfinalE) <-
                         case multi of
                             Nothing -> return (ConP '[] [], Nothing)
                             Just _ -> do
-                                multiName <- newName "multi"
+                                multiName <- newName "multiHERE"
                                 let pat = ViewP (VarE 'fromPathMultiPiece)
                                                 (ConP 'Just [VarP multiName])
                                 return (pat, Just $ VarE multiName)
 
                     let dynsMulti =
                             case mfinalE of
-                                Nothing -> dyns
-                                Just e -> dyns ++ [e]
+                                Nothing -> dyns ++ queries
+                                Just e -> dyns ++ e:queries
                         route' = foldl' AppE (ConE (mkName name)) dynsMulti
                         route = foldr AppE route' extraCons
                         jroute = ConE 'Just `AppE` route
@@ -207,7 +211,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
         handler <- mds404
         runHandler <- mdsRunHandler
         let exp = runHandler `AppE` handler `AppE` envE `AppE` ConE 'Nothing `AppE` reqE
-        return $ Clause [WildP] (NormalB exp) []
+        return $ Clause [WildP, WildP] (NormalB exp) []
 
 defaultGetHandler :: Maybe String -> String -> Q Exp
 defaultGetHandler Nothing s = return $ VarE $ mkName $ "handle" ++ s

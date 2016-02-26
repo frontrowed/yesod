@@ -115,7 +115,8 @@ do
     dispatch <- mkDispatchClause MkDispatchSettings
         { mdsRunHandler = [|runHandler|]
         , mdsSubDispatcher = [|subDispatch|]
-        , mdsGetPathInfo = [|\(paths, queries, _method) -> paths ++ fmap snd queries |]
+        , mdsGetPathInfo = [|\(paths, _queries, _method) -> paths |]
+        , mdsGetQueryInfo = [|\(_paths, queries, _method) -> fmap snd queries |]
         , mdsMethod = [|\(_paths, _queries, method) -> method|]
         , mdsSetPathInfo = [|\p (_, m) -> (p, m)|]
         , mds404 = [|pack "404"|]
