@@ -38,7 +38,7 @@ instance ToText String where toText = pack
 type Handler2 sub master a = a
 type Handler site a = Handler2 site site a
 
-type Request = ([Text], ByteString) -- path info, method
+type Request = ([Text], [(Text, Text)], ByteString) -- path info, queries, method
 type App sub master = Request -> (Text, Maybe (Route master))
 data Env sub master = Env
     { envToMaster :: Route sub -> Route master
@@ -115,8 +115,8 @@ do
     dispatch <- mkDispatchClause MkDispatchSettings
         { mdsRunHandler = [|runHandler|]
         , mdsSubDispatcher = [|subDispatch|]
-        , mdsGetPathInfo = [|fst|]
-        , mdsMethod = [|snd|]
+        , mdsGetPathInfo = [|\(paths, queries, _method) -> paths ++ fmap snd queries |]
+        , mdsMethod = [|\(_paths, _queries, method) -> method|]
         , mdsSetPathInfo = [|\p (_, m) -> (p, m)|]
         , mds404 = [|pack "404"|]
         , mds405 = [|pack "405"|]
@@ -183,18 +183,18 @@ hierarchy = describe "hierarchy" $ do
         renderRoute (AdminR 6 $ TableR "foo") @?= (["admin", "6", "table", "foo"], [])
     it "renders queries correctly" $
         renderRoute (QueryR 1) @?= (["query"], [("q", "1")])
-    let disp m ps = dispatcher
+    let disp m queries ps = dispatcher
             (Env
                 { envToMaster = id
                 , envMaster = Hierarchy
                 , envSub = Hierarchy
                 })
-            (map pack ps, S8.pack m)
+            (map pack ps, queries, S8.pack m)
 
     let testGetPost route getRes postRes = do
           let routeStrs = map unpack $ fst (renderRoute route)
-          disp "GET" routeStrs @?= (getRes, Just route)
-          disp "POST" routeStrs @?= (postRes, Just route)
+          disp "GET" [] routeStrs @?= (getRes, Just route)
+          disp "POST" [] routeStrs @?= (postRes, Just route)
 
     it "dispatches routes with multiple METHODs: admin" $
         testGetPost (AdminR 1 LoginR) "login: 1" "post login: 1"
@@ -202,8 +202,10 @@ hierarchy = describe "hierarchy" $ do
     it "dispatches routes with multiple METHODs: nesting" $
         testGetPost (NestR $ Nest2 GetPostR) "get" "post"
 
-    it "dispatches root correctly" $ disp "GET" ["admin", "7"] @?= ("admin root: 7", Just $ AdminR 7 AdminRootR)
-    it "dispatches table correctly" $ disp "GET" ["admin", "8", "table", "bar"] @?= ("TableR bar", Just $ AdminR 8 $ TableR "bar")
+    it "dispatches root correctly" $
+      disp "GET" [] ["admin", "7"] @?= ("admin root: 7", Just $ AdminR 7 AdminRootR)
+    it "dispatches table correctly" $
+      disp "GET" [] ["admin", "8", "table", "bar"] @?= ("TableR bar", Just $ AdminR 8 $ TableR "bar")
     it "parses" $ do
         parseRoute ([], []) @?= Just HomeR
         parseRoute ([], [("foo", "bar")]) @?= Just HomeR

@@ -54,6 +54,8 @@ mkDispatchClause MkDispatchSettings {..} resources = do
     clause404' <- mkClause404 envE reqE
     getPathInfo <- mdsGetPathInfo
     let pathInfo = getPathInfo `AppE` reqE
+    {-getQueryInfo <- mdsGetQueryInfo-}
+    {-let queryInfo = getQueryInfo `AppE` pathInfo-}
 
     let sdc = SDC
             { clause404 = clause404'

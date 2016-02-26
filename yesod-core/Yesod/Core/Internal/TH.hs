@@ -101,7 +101,7 @@ mkYesodGeneral namestr args isSub f resS = do
                    case arg of
                      Left  t  -> ( ConT (mkName t):xs, n:ns, cs )
                      Right ts -> ( VarT n         :xs,   ns
-                                 , fmap (\t -> 
+                                 , fmap (\t ->
 #if MIN_VERSION_template_haskell(2,10,0)
                                                AppT (ConT $ mkName t) (VarT n)
 #else

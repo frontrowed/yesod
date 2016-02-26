@@ -87,9 +87,9 @@ do
     dispatch <- mkDispatchClause MkDispatchSettings
         { mdsRunHandler = [|runHandler|]
         , mdsSubDispatcher = [|subDispatch dispatcher|]
-        , mdsGetPathInfo = [|fst|]
-        , mdsMethod = [|snd|]
-        , mdsSetPathInfo = [|\p (_, m) -> (p, m)|]
+        , mdsGetPathInfo = [|\(path, _queries, _method) -> path|]
+        , mdsMethod = [|\(_paths, _queries, method) -> method|]
+        , mdsSetPathInfo = [|\p (_, q, m) -> (p, q, m)|]
         , mds404 = [|pack "404"|]
         , mds405 = [|pack "405"|]
         , mdsGetHandler = defaultGetHandler
@@ -107,7 +107,7 @@ do
         : rrinst
 
 instance Dispatcher MySub master where
-    dispatcher env (pieces, _method) =
+    dispatcher env (pieces, _queries, _method) =
         ( pack $ "subsite: " ++ show pieces
         , Just $ envToMaster env route
         )
@@ -115,7 +115,7 @@ instance Dispatcher MySub master where
         route = MySubRoute (pieces, [])
 
 instance Dispatcher MySubParam master where
-    dispatcher env (pieces, method) =
+    dispatcher env (pieces, _queries, method) =
         case map unpack pieces of
             [[c]] ->
                 let route = ParamRoute c
@@ -203,25 +203,25 @@ main = hspec $ do
             @?= (map pack ["subparam", "6", "c"], [])
 
     describe "thDispatch" $ do
-        let disp m ps = dispatcher
+        let disp m queries ps = dispatcher
                 (Env
                     { envToMaster = id
                     , envMaster = MyApp
                     , envSub = MyApp
                     })
-                (map pack ps, S8.pack m)
-        it "routes to root" $ disp "GET" [] @?= (pack "this is the root", Just RootR)
-        it "POST root is 405" $ disp "POST" [] @?= (pack "405", Just RootR)
-        it "invalid page is a 404" $ disp "GET" ["not-found"] @?= (pack "404", Nothing :: Maybe (YRC.Route MyApp))
-        it "routes to blog post" $ disp "GET" ["blog", "somepost"]
+                (map pack ps, queries, S8.pack m)
+        it "routes to root" $ disp "GET" [] [] @?= (pack "this is the root", Just RootR)
+        it "POST root is 405" $ disp "POST" [] [] @?= (pack "405", Just RootR)
+        it "invalid page is a 404" $ disp "GET" [] ["not-found"] @?= (pack "404", Nothing :: Maybe (YRC.Route MyApp))
+        it "routes to blog post" $ disp "GET" [] ["blog", "somepost"]
             @?= (pack "some blog post: somepost", Just $ BlogPostR $ pack "somepost")
-        it "routes to blog post, POST method" $ disp "POST" ["blog", "somepost2"]
+        it "routes to blog post, POST method" $ disp "POST" [] ["blog", "somepost2"]
             @?= (pack "POST some blog post: somepost2", Just $ BlogPostR $ pack "somepost2")
-        it "routes to wiki" $ disp "DELETE" ["wiki", "foo", "bar"]
+        it "routes to wiki" $ disp "DELETE" [] ["wiki", "foo", "bar"]
             @?= (pack "the wiki: [\"foo\",\"bar\"]", Just $ WikiR $ map pack ["foo", "bar"])
-        it "routes to subsite" $ disp "PUT" ["subsite", "baz"]
+        it "routes to subsite" $ disp "PUT" [] ["subsite", "baz"]
             @?= (pack "subsite: [\"baz\"]", Just $ SubsiteR $ MySubRoute ([pack "baz"], []))
-        it "routes to subparam" $ disp "PUT" ["subparam", "6", "q"]
+        it "routes to subparam" $ disp "PUT" [] ["subparam", "6", "q"]
             @?= (pack "subparam 6 q", Just $ SubparamR 6 $ ParamRoute 'q')
 
     describe "parsing" $ do
