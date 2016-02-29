@@ -5,6 +5,8 @@ module Yesod.Routes.TH.Dispatch
     , defaultGetHandler
     ) where
 
+import Control.Monad ((>=>))
+import Data.String (fromString)
 import Prelude hiding (exp)
 import Language.Haskell.TH.Syntax
 import Web.PathPieces
@@ -15,6 +17,7 @@ import Control.Arrow (second)
 import System.Random (randomRIO)
 import Yesod.Routes.TH.Types
 import Data.Char (toLower)
+import Data.Text (Text)
 
 data MkDispatchSettings b site c = MkDispatchSettings
     { mdsRunHandler :: Q Exp
@@ -83,9 +86,10 @@ mkDispatchClause MkDispatchSettings {..} resources = do
     handlePieces = fmap (second catMaybes . unzip) . mapM handlePiece
 
     handleQuery :: Query a -> Q (Pat, Exp)
-    handleQuery (Query _ _) = do
+    handleQuery (Query param _) = do
         x <- newName "query"
-        let pat = ViewP (VarE 'fromPathPiece) (ConP 'Just [VarP x])
+        b <- [| lookup (fromString param :: Text) >=> fromPathPiece |]
+        let pat = ViewP b (ConP 'Just [VarP x])
         return (pat, VarE x)
 
     handleQueries :: [Query a] -> Q ([Pat], [Exp])
@@ -143,7 +147,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
                         case multi of
                             Nothing -> return (ConP '[] [], Nothing)
                             Just _ -> do
-                                multiName <- newName "multiHERE"
+                                multiName <- newName "multi"
                                 let pat = ViewP (VarE 'fromPathMultiPiece)
                                                 (ConP 'Just [VarP multiName])
                                 return (pat, Just $ VarE multiName)
