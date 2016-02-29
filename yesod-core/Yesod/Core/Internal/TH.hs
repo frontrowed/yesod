@@ -143,7 +143,7 @@ mkMDS f rh = MkDispatchSettings
                                     }
                               |]
     , mdsGetPathInfo = [|W.pathInfo|]
-    , mdsGetQueryInfo = [| W.queryString |]
+    , mdsGetQueryInfo = [|W.queryString|]
     , mdsSetPathInfo = [|\p r -> r { W.pathInfo = p }|]
     , mdsMethod = [|W.requestMethod|]
     , mds404 = [|notFound >> return ()|]

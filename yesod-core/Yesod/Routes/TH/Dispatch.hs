@@ -54,9 +54,9 @@ mkDispatchClause MkDispatchSettings {..} resources = do
 
     clause404' <- mkClause404 envE reqE
     getPathInfo <- mdsGetPathInfo
-    let pathInfo = getPathInfo `AppE` reqE
+    let pathInfo = (ParensE getPathInfo) `AppE` reqE
     getQueryInfo <- mdsGetQueryInfo
-    let queryInfo = getQueryInfo `AppE` reqE
+    let queryInfo = (ParensE getQueryInfo) `AppE` reqE
 
     let sdc = SDC
             { clause404 = clause404'
@@ -121,7 +121,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
         let helperE = VarE helperName
 
         return $ Clause
-            [mkPathPat restPathP pats , mkPathPat restQueryP patsQ]
+            [mkPathPat restPathP pats, mkPathPat restQueryP patsQ]
             (NormalB $ helperE `AppE` restPathE `AppE` restQueryE )
             [FunD helperName $ childClauses ++ [clause404 sdc]]
     go SDC {..} (ResourceLeaf (Resource name pieces queries dispatch _ _check)) = do
@@ -131,7 +131,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
         (chooseMethod, finalPat) <- handleDispatch dispatch (dyns, qs)
 
         return $ Clause
-            [mkPathPat finalPat pats, mkPathPat finalPat patsQ]
+            [mkPathPat finalPat pats, mkPathPat WildP patsQ]
             (NormalB chooseMethod)
             []
       where
