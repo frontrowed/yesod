@@ -203,6 +203,9 @@ hierarchy = describe "hierarchy" $ do
     it "dispatches routes with multiple METHODs: nesting" $
         testGetPost (NestR $ Nest2 GetPostR) "get" "post"
 
+    it "dispatches queries correctly" $
+        disp "GET" [("q", "1")] ["query"] @?= ("query param: 1", Just (QueryR 1))
+
     it "dispatches root correctly" $
       disp "GET" [] ["admin", "7"] @?= ("admin root: 7", Just $ AdminR 7 AdminRootR)
     it "dispatches table correctly" $
