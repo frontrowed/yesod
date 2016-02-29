@@ -82,6 +82,8 @@ do
 
 /query/?q=Int QueryR GET
 
+/captureQueries/#Int/?s=String/?b=Bool CaptureQueriesR GET
+
 /admin/#Int AdminR:
     /            AdminRootR GET
     /login       LoginR     GET POST
@@ -174,6 +176,11 @@ postGetPostR = pack "post"
 getQueryR :: Int -> Handler site Text
 getQueryR i = pack $ "query param: " ++ show i
 
+getCaptureQueriesR :: Int -> String -> Bool -> Handler site Text
+getCaptureQueriesR i s b = pack $ "capture: " ++ show i
+                               ++ " query1: " ++ s
+                               ++ " query2: " ++ show b
+
 hierarchy :: Spec
 hierarchy = describe "hierarchy" $ do
     it "nested with spacing" $
@@ -203,8 +210,14 @@ hierarchy = describe "hierarchy" $ do
     it "dispatches routes with multiple METHODs: nesting" $
         testGetPost (NestR $ Nest2 GetPostR) "get" "post"
 
-    it "dispatches queries correctly" $
+    it "dispatches queries correctly" $ do
         disp "GET" [("q", "1")] ["query"] @?= ("query param: 1", Just (QueryR 1))
+        disp "GET" [("s", "foo"), ("b", "True")] ["captureQueries", "1"]
+            @?= ("capture: 1 query1: foo query2: True", Just (CaptureQueriesR 1 "foo" True))
+
+    it "accepts queries in any order" $ do
+        disp "GET" [("b", "True"), ("s", "foo")] ["captureQueries", "1"]
+            @?= ("capture: 1 query1: foo query2: True", Just (CaptureQueriesR 1 "foo" True))
 
     it "dispatches root correctly" $
       disp "GET" [] ["admin", "7"] @?= ("admin root: 7", Just $ AdminR 7 AdminRootR)
