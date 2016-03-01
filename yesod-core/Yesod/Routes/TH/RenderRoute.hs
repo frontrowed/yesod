@@ -11,6 +11,7 @@ import Yesod.Routes.TH.Types
 import Language.Haskell.TH.Syntax
 import Data.Maybe (maybeToList)
 import Control.Monad (replicateM)
+import Control.Arrow ((***))
 import Data.Text (pack)
 import Web.PathPieces (PathPiece (..), PathMultiPiece (..))
 import Yesod.Routes.Class
@@ -101,7 +102,9 @@ mkRenderRouteClauses =
 
         pack' <- [|pack|]
         tsp <- [|toPathPiece|]
-        let piecesSingle = mkPieces (AppE pack' . LitE . StringL) tsp (resourcePieces res) (dyns ++ qs)
+        mpq <- [| \p v -> (p, toPathPiece v) |]
+        let piecesSingle = mkPieces (AppE pack' . LitE . StringL) tsp (resourcePieces res) dyns
+        let queriesSingle = mkQueries mpq (resourceQueries res) qs
 
         piecesMulti <-
             case resourceMulti res of
@@ -120,12 +123,14 @@ mkRenderRouteClauses =
                     colon <- [|(:)|]
                     let cons y ys = InfixE (Just y) colon (Just ys)
                     let pieces = foldr cons (VarE a) piecesSingle
+                    let queries = foldr cons (VarE b) queriesSingle
 
-                    return $ LamE [TupP [VarP a, VarP b]] (TupE [pieces, VarE b]) `AppE` (rr `AppE` VarE x)
+                    return $ LamE [TupP [VarP a, VarP b]] (TupE [pieces, queries]) `AppE` (rr `AppE` VarE x)
                 _ -> do
                     colon <- [|(:)|]
                     let cons a b = InfixE (Just a) colon (Just b)
-                    return $ TupE [foldr cons piecesMulti piecesSingle, ListE []]
+                    return $ TupE [ foldr cons piecesMulti piecesSingle -- , ListE []]
+                                  , foldr cons (ListE []) queriesSingle]
 
         return $ Clause [pat] (NormalB body) []
 
@@ -133,6 +138,10 @@ mkRenderRouteClauses =
     mkPieces toText tsp (Static s:ps) dyns = toText s : mkPieces toText tsp ps dyns
     mkPieces toText tsp (Dynamic{}:ps) (d:dyns) = tsp `AppE` VarE d : mkPieces toText tsp ps dyns
     mkPieces _ _ ((Dynamic _) : _) [] = error "mkPieces 120"
+
+    mkQueries _   []               _        = []
+    mkQueries tsp (Query n _ : qs) (d:dyns) = tsp `AppE` LitE (StringL n) `AppE` VarE d : mkQueries tsp qs dyns
+    mkQueries _   (Query _ _ : _)  []       = error "mkQueries"
 
 -- | Generate the 'RenderRoute' instance.
 --

@@ -45,13 +45,3 @@ mkParseRouteInstance typ ress = do
 
     fixDispatch (Methods x _) = Methods x []
     fixDispatch x = x
-
---  Put the query params in the order in which they are expected by the
---  handler
-{-queryParamsInOrder :: [Text] -> Q Exp [(Text, Text)] -> [Text]-}
-{-queryParamsInOrder q = [| \qs -> snd <$> sortBy (go `on` fst) (filter isWanted qs)-}
-  {-where-}
-    {-isWanted (p, _) = p `elem` q-}
-    {-go x y = case (elemIndex x q, elemIndex y q) of-}
-                    {-(Just ix, Just iy) -> ix `compare` iy-}
-                    {-_                  -> error "impossible" filtered-}
