@@ -140,7 +140,7 @@ mkDispatchClause MkDispatchSettings {..} resources = do
             []
       where
         handleDispatch :: Dispatch a -> ([Exp], [Exp]) -> Q (Exp, Pat)
-        handleDispatch dispatch' (dyns, queries) =
+        handleDispatch dispatch' (dyns, queries') =
             case dispatch' of
                 Methods multi methods -> do
                     (finalPat, mfinalE) <-
@@ -154,8 +154,8 @@ mkDispatchClause MkDispatchSettings {..} resources = do
 
                     let dynsMulti =
                             case mfinalE of
-                                Nothing -> dyns ++ queries
-                                Just e -> dyns ++ e:queries
+                                Nothing -> dyns ++ queries'
+                                Just e -> dyns ++ e:queries'
                         route' = foldl' AppE (ConE (mkName name)) dynsMulti
                         route = foldr AppE route' extraCons
                         jroute = ConE 'Just `AppE` route

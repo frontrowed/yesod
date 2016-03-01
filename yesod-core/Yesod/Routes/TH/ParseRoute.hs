@@ -9,8 +9,6 @@ import Language.Haskell.TH.Syntax
 import Data.Text (Text)
 import Yesod.Routes.Class
 import Yesod.Routes.TH.Dispatch
-import Data.List (sortBy, elemIndex)
-import Data.Function (on)
 
 mkParseRouteInstance :: Type -> [ResourceTree a] -> Q Dec
 mkParseRouteInstance typ ress = do
@@ -20,7 +18,7 @@ mkParseRouteInstance typ ress = do
             , mds404 = [|error "mds404"|]
             , mds405 = [|error "mds405"|]
             , mdsGetPathInfo = [|\(paths, _queries) -> paths|]
-            , mdsGetQueryInfo = [|\(_paths, queries) -> repeat queries|]
+            , mdsGetQueryInfo = [|\(_paths, queries') -> repeat queries'|]
             , mdsMethod = [|error "mdsMethod"|]
             , mdsGetHandler = \_ _ -> [|error "mdsGetHandler"|]
             , mdsSetPathInfo = [|\p (_, q) -> (p, q)|]
