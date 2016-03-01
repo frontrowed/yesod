@@ -5,7 +5,7 @@ module Yesod.Routes.TH.Types
     ( -- * Data types
       Resource (..)
     , ResourceTree (..)
-    , AnyPiece (..)
+    , PieceResult (..)
     , Piece (..)
     , Query (..)
     , Dispatch (..)
@@ -72,12 +72,15 @@ data Query typ = Query
 instance Lift t => Lift (Query t) where
     lift (Query p t) = [|Query $(lift p) $(lift t)|]
 
-data AnyPiece typ = UrlPiece (Piece typ) | QueryPiece (Query typ)
-    deriving (Eq, Show, Read, Functor)
+data PieceResult s = PieceResult
+  { singlePieces :: [(CheckOverlap, Piece s)]
+  , multiPiece :: Maybe (CheckOverlap, s)
+  , queries :: [Query s]
+  }
+  deriving (Eq, Show, Read, Functor)
 
-instance Lift t => Lift (AnyPiece t) where
-    lift (UrlPiece t) = [|UrlPiece $(lift t)|]
-    lift (QueryPiece t) = [|QueryPiece $(lift t)|]
+instance Lift t => Lift (PieceResult t) where
+  lift (PieceResult s m q) = [| PieceResult $(lift s) $(lift m) $(lift q) |]
 
 data Dispatch typ =
     Methods

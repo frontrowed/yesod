@@ -80,9 +80,9 @@ do
 
 /!#Int BackwardsR GET
 
-/query/?q=Int QueryR GET
+/query?q=#Int QueryR GET
 
-/captureQueries/#Int/?s=String/?b=Bool CaptureQueriesR GET
+/captureQueries/#Int?s=#String&b=#Bool CaptureQueriesR GET
 
 /admin/#Int AdminR:
     /            AdminRootR GET

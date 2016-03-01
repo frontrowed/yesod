@@ -13,7 +13,6 @@ module Yesod.Routes.Parse
     ) where
 
 import Language.Haskell.TH.Syntax
-import Control.Arrow ((***))
 import Data.Char (isUpper)
 import Language.Haskell.TH.Quote
 import qualified System.IO as SIO
@@ -93,29 +92,26 @@ resourcesFromString =
                     , Just attrs <- mapM parseAttr rest ->
                     let (children, otherLines'') = parse (length spaces + 1) otherLines
                         children' = addAttrs attrs children
-                        (pieces, queries, Nothing, check) = piecesFromStringCheck pattern
-                     in ((ResourceParent constr check pieces queries children' :), otherLines'')
+                        (pieces, queries', Nothing, check) = piecesFromStringCheck pattern
+                     in ((ResourceParent constr check pieces queries' children' :), otherLines'')
                 (pattern:constr:rest) ->
-                    let (pieces, queries, mmulti, check) = piecesFromStringCheck pattern
+                    let (pieces, queries', mmulti, check) = piecesFromStringCheck pattern
                         (attrs, rest') = takeAttrs rest
                         disp = dispatchFromString rest' mmulti
-                     in ((ResourceLeaf (Resource constr pieces queries disp attrs check):), otherLines)
+                     in ((ResourceLeaf (Resource constr pieces queries' disp attrs check):), otherLines)
                 [] -> (id, otherLines)
                 _ -> error $ "Invalid resource line: " ++ thisLine
 
 piecesFromStringCheck :: String -> ([Piece String], [Query String], Maybe String, Bool)
 piecesFromStringCheck s0 =
-    (pieces, queries, mmulti, check)
+    (pieces, queries pieceResult, mmulti, check)
   where
     (s1, check1) = stripBang s0
-    (anypieces', mmulti') = piecesFromString $ drop1Slash s1
-    anypieces = map snd anypieces'
-    accum (ps, qs) [] = (ps, qs)
-    accum (ps, qs) (QueryPiece q : xs) = accum (ps, q:qs) xs
-    accum (ps, qs) (UrlPiece   p : xs) = accum (p:ps, qs) xs
-    (pieces, queries) = reverse *** reverse $ accum ([], []) anypieces
-    mmulti = fmap snd mmulti'
-    check = check1 && all fst anypieces' && maybe True fst mmulti'
+    pieceResult = allFromString $ drop1Slash s1
+    pieces = map snd (singlePieces pieceResult)
+    mmulti = fmap snd (multiPiece pieceResult)
+    check = check1 && all fst (singlePieces pieceResult)
+         && maybe True fst (multiPiece pieceResult)
 
     stripBang ('!':rest) = (rest, False)
     stripBang x = (x, True)
@@ -166,7 +162,17 @@ drop1Slash :: String -> String
 drop1Slash ('/':x) = x
 drop1Slash x = x
 
-piecesFromString :: String -> ([(CheckOverlap, AnyPiece String)], Maybe (CheckOverlap, String))
+allFromString :: String -> PieceResult String
+allFromString s = PieceResult p m queries'
+  where
+    (ps, qs) = break (== '?') s
+    (p, m) = piecesFromString ps
+    queries' = case qs of
+      []        -> []
+      ('?':qs') -> queriesFromString qs'
+      _         -> error "Impossible"
+
+piecesFromString :: String -> ([(CheckOverlap, Piece String)], Maybe (CheckOverlap, String))
 piecesFromString "" = ([], Nothing)
 piecesFromString x =
     case (this, rest) of
@@ -177,6 +183,7 @@ piecesFromString x =
     (y, z) = break (== '/') x
     this = pieceFromString y
     rest = piecesFromString $ drop 1 z
+
 
 parseType :: String -> Type
 parseType orig =
@@ -241,15 +248,10 @@ ttToType (TTTerm s) = ConT $ mkName s
 ttToType (TTApp x y) = ttToType x `AppT` ttToType y
 ttToType (TTList t) = ListT `AppT` ttToType t
 
-pieceFromString :: String -> Either (CheckOverlap, String) (CheckOverlap, AnyPiece String)
-pieceFromString ('#':'!':x) = Right $ (False, UrlPiece $ Dynamic x)
-pieceFromString ('!':'#':x) = Right $ (False, UrlPiece $ Dynamic x) -- https://github.com/yesodweb/yesod/issues/652
-pieceFromString ('#':x) = Right $ (True, UrlPiece $ Dynamic x)
-
-pieceFromString ('?':'!':x) = Right (False, QueryPiece $ parseQueryString x)
-pieceFromString ('!':'?':x) = Right (False, QueryPiece $ parseQueryString x)
-
-pieceFromString ('?':x) = Right (True, QueryPiece $ parseQueryString x)
+pieceFromString :: String -> Either (CheckOverlap, String) (CheckOverlap, Piece String)
+pieceFromString ('#':'!':x) = Right $ (False, Dynamic x)
+pieceFromString ('!':'#':x) = Right $ (False, Dynamic x) -- https://github.com/yesodweb/yesod/issues/652
+pieceFromString ('#':x) = Right $ (True, Dynamic x)
 
 pieceFromString ('*':'!':x) = Left (False, x)
 pieceFromString ('+':'!':x) = Left (False, x)
@@ -260,10 +262,17 @@ pieceFromString ('!':'+':x) = Left (False, x)
 pieceFromString ('*':x) = Left (True, x)
 pieceFromString ('+':x) = Left (True, x)
 
-pieceFromString ('!':x) = Right $ (False, UrlPiece $ Static x)
-pieceFromString x = Right $ (True, UrlPiece $ Static x)
+pieceFromString ('!':x) = Right $ (False, Static x)
+pieceFromString x = Right $ (True, Static x)
+
 
 parseQueryString :: String -> Query String
-parseQueryString s = Query name (drop 1 typ)
+parseQueryString s = Query name (drop 2 typ)
   where
     (name, typ) = break (== '=') s
+
+queriesFromString :: String -> [Query String]
+queriesFromString s = case break (== '&') s of
+  (xs, []) -> [parseQueryString xs]
+  (xs, '&':ys) -> parseQueryString xs : queriesFromString ys
+  (_, _) -> error "impossible"
