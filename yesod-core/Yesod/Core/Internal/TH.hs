@@ -16,6 +16,8 @@ import qualified Network.Wai as W
 
 import Data.ByteString.Lazy.Char8 ()
 import Data.List (foldl')
+import Data.Text (Text)
+import Data.Text.Encoding (decodeUtf8)
 import Control.Monad (replicateM)
 import Data.Either (partitionEithers)
 
@@ -143,7 +145,7 @@ mkMDS f rh = MkDispatchSettings
                                     }
                               |]
     , mdsGetPathInfo = [|W.pathInfo|]
-    , mdsGetQueryInfo = [|W.queryString|]
+    , mdsGetQueryInfo = [|processedQueryString|]
     , mdsSetPathInfo = [|\p r -> r { W.pathInfo = p }|]
     , mdsMethod = [|W.requestMethod|]
     , mds404 = [|notFound >> return ()|]
@@ -151,6 +153,11 @@ mkMDS f rh = MkDispatchSettings
     , mdsGetHandler = defaultGetHandler
     , mdsUnwrapper = f
     }
+
+processedQueryString :: W.Request -> [[(Text, Text)]]
+processedQueryString req = repeat $ go <$> W.queryString req
+  where
+    go (q, v) = (decodeUtf8 q, maybe "" decodeUtf8 v)
 
 -- | If the generation of @'YesodDispatch'@ instance require finer
 -- control of the types, contexts etc. using this combinator. You will
